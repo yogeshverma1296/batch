@@ -57,7 +57,10 @@ async function getAllBatches(req, res) {
 const updateBatch = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    const updateData = {
+      ...req.body,
+      batch_update_date: new Date(), // 🔁 update timestamp
+    };
 
     const batch = await Batch.findByIdAndUpdate(id, updateData, { new: true });
 
