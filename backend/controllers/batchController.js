@@ -1,6 +1,7 @@
 // backend/controllers/batchController.js
 const Batch = require('../models/batch');
 const Counter = require('../models/counter');
+const SuspendedBatch = require('../models/suspendedBatch');
 
 // Ensure counter exists
 async function initCounter() {
@@ -87,10 +88,66 @@ const deleteBatch = async (req, res) => {
   }
 };
 
+// Suspend logic
+const suspendBatch = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const batch = await Batch.findById(id);
+
+    if (!batch) {
+      return res.status(404).json({ status: 'fail', message: 'Batch not found' });
+    }
+
+    // 🟠 Set status to Suspended and update date
+    const suspended = new SuspendedBatch({
+      ...batch.toObject(),
+      batch_status: 2,
+      batch_update_date: new Date()
+    });
+
+    await suspended.save();
+    await batch.deleteOne(); // Remove from active
+
+    res.json({ status: 'success', message: 'Batch suspended' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+const restoreBatch = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const suspended = await SuspendedBatch.findById(id);
+
+    if (!suspended) return res.status(404).json({ status: 'fail', message: 'Suspended batch not found' });
+
+    const restored = new Batch({ ...suspended.toObject() });
+    delete restored._id;
+
+    await restored.save();
+    await suspended.deleteOne();
+
+    res.json({ status: 'success', message: 'Batch restored' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+// Fetch all suspended batches
+const getAllSuspendedBatches = async (req, res) => {
+  try {
+    const batches = await SuspendedBatch.find().sort({ batch_update_date: -1 });
+    res.json({ status: 'success', data: batches });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
 module.exports = {
   createBatch,
   getAllBatches,
   updateBatch,
-  deleteBatch,
+  suspendBatch,
+  restoreBatch,
+  getAllSuspendedBatches, // ← Important!
   initCounter,
 };
